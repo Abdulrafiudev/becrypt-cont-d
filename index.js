@@ -13,7 +13,7 @@ let salt_rounds = 10
 env.config()
 
 const db = new pg.Client({
-  user: "postgres",
+  user: process.env.DB_USER,
   host: "localhost",
   database: process.env.DB_NAME,
   password: process.env.DB_PASSWORD,
