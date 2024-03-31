@@ -6,6 +6,7 @@ import session from "express-session"
 import passport from "passport";
 import { Strategy } from "passport-local";
 import env from "dotenv"
+import GoogleStrategy from "passport-google-oauth2"
 
 const app = express();
 const port = 3000;
@@ -61,6 +62,34 @@ app.get("/register", (req, res) => {
   res.render("register.ejs");
 });
 
+app.get(
+  "/auth/google",
+  passport.authenticate("google", {
+    scope: ["profile", "email"],
+  })
+);
+
+app.get(`/auth/google/secrets`, passport.authenticate("google", {
+  successRedirect: "/secrets",
+  failureRedirect: "/login",
+}))
+
+
+app.get(`/logout`, (req, res) => {
+  req.logout((error) => {
+    if (error){
+      console.error(`error logging out`)
+    }
+    else{
+      res.redirect(`/`)
+    }
+  })
+})
+
+
+
+
+
 app.post("/register", async (req, res) => {
   let user_name = req.body.username
   let password = req.body.password
@@ -106,7 +135,7 @@ app.post("/login", passport.authenticate("local", {
 );
 
 // managing sessions when loggin in
-passport.use(new Strategy(async function verify(username, password, cb){
+passport.use(`local`, new Strategy(async function verify(username, password, cb){
   console.log(username)
   try{
     // Comparing the passwords
@@ -150,6 +179,31 @@ passport.use(new Strategy(async function verify(username, password, cb){
   }
   catch(err){
     return cb(err)
+  }
+}))
+
+passport.use("google", new GoogleStrategy({
+  clientID: process.env.GOOGLE_CLIENT_ID,
+  clientSecret: process.env.GOOGLE_CLIENT_SECRET,
+  callbackURL: "http://localhost:3000/auth/google/secrets",
+  userProfileURL:"http://www.googleapis.com/oauth2/v3/userinfo"
+
+}, async function(accessToken, refreshToken, profile, cb){
+  console.log(profile)
+  try{
+    let response = await db.query(`SELECT * FROM users WHERE usernaame = $1`, [profile.email])
+    let result = response.rows
+    console.log(result)
+    if (result.length === 0){
+      let new_user = await db.query(`INSERT INTO users(usernaame, password) VALUES($1, $2) RETURNING *`, [profile.email, "google"])
+      cb(null, new_user.rows[0])
+    }
+    else{
+      cb(null, result[0])
+    }
+  }
+  catch(error){
+    cb(error)
   }
 }))
 
