@@ -44,10 +44,27 @@ app.get("/", (req, res) => {
   res.render("home.ejs");
 });
 
-app.get(`/secrets`, (req, res) => {
-  console.log(req.user)
+app.get(`/secrets`, async (req, res) => {
+ 
   if (req.isAuthenticated){
-    res.render(`secrets.ejs`)
+    try{
+      let response = await db.query(`SELECT secret_text FROM users WHERE users.usernaame = $1`, [req.user.usernaame])
+      let result = response.rows[0].secret_text
+      
+      if (result){
+        res.render(`secrets.ejs`, {secrets: result})
+      }
+      else{
+        
+        res.render(`secrets.ejs`, {secrets: `Jack Bauer is my hero.`})
+      }
+      
+    }
+    catch(error){
+      console.error(error)
+  }
+
+
   }
   else{
     res.render(`login.ejs`)
@@ -74,6 +91,30 @@ app.get(`/auth/google/secrets`, passport.authenticate("google", {
   failureRedirect: "/login",
 }))
 
+app.get(`/submit`, (req, res) => {
+  if (req.isAuthenticated()){
+    res.render((`submit.ejs`))
+  }
+  else{
+    res.redirect(`/login`)
+  }
+ 
+})
+
+
+app.post(`/submit`, async (req, res) => {
+  let secret_text = req.body.secret
+  try{
+
+    await db.query(`UPDATE users SET secret_text = $1 WHERE users.usernaame = $2`, [secret_text, req.user.usernaame])
+    res.redirect(`/secrets`)
+  
+  }
+  catch(error){
+    console.error(error)
+  }
+
+})
 
 app.get(`/logout`, (req, res) => {
   req.logout((error) => {
@@ -89,6 +130,7 @@ app.get(`/logout`, (req, res) => {
 
 
 
+// logic to register on the web app
 
 app.post("/register", async (req, res) => {
   let user_name = req.body.username
@@ -134,7 +176,8 @@ app.post("/login", passport.authenticate("local", {
   })
 );
 
-// managing sessions when loggin in
+
+// managing sessions when loggin in and logic to login back into the web app
 passport.use(`local`, new Strategy(async function verify(username, password, cb){
   console.log(username)
   try{
